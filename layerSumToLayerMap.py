@@ -24,6 +24,7 @@
 #   Version 0.0 | 12/02/2022 - started work on script                   #
 #   Version 0.1 | 23/03/2022 - finished first draft, pending testing    #
 #   Version 1.0 | 27/10/2022 - initial release                          #
+#   Version 1.1 | 28/10/2022 - added output option                      #
 #########################################################################
 # Prerequisite
 # 1. python 3
@@ -49,6 +50,8 @@ import csv
 import shutil
 from tempfile import NamedTemporaryFile
 import copy
+from configparser import ConfigParser
+import ast
 
 logging.basicConfig(filename=f'{sys.argv[0]}.log', encoding='utf-8',format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -60,13 +63,57 @@ debug = 0
 # 1 --> function message
 # 2 --> data information
 
+def createINI(file):
+    if debug == 1: logger.info("createINI")
+    if debug >= 2: logger.info("createINI: {}".format(file))
+    if os.path.isfile(file):
+        return 1
+    else:
+        config = ConfigParser()
+        config['script-arg-conf'] = {
+			"DESCRIPTION":"adjusting CSV files acording to a maping file",
+			"-s":['--sumf', True,1, "summery file input",1],
+			"-o":['--ouput', True, 1, "output layermap file",1]
+		}
+        config['headers'] = {
+             "new_header":['#Layer Name','Layer Purpose','GDS Layer','GDS Datatype']
+        }
+        config['debug'] = {
+			'debug': 0
+		}
+        with open(file, 'w') as f:
+            config.write(f)
+
+def getnCheckCfg(file, sec):
+    if debug == 1: logger.info("getnCheckCfg")
+    if debug >= 2: logger.info("getnCheckCfg: {}".format(file))
+    pars = ConfigParser()
+    try:
+        pars.read(file)
+    except OSError:
+        print("Could not write ini file:", file)
+        input("press enter to exit program")
+        exit()
+    cfgVar = {}
+    if sec in pars:
+        for key in pars.items(sec):
+            if debug >= 2: logger.info('entry sec: {} key[0]: {}, key[1]: {}'.format(sec,key[0], key[1]))
+            cfgVar[key[0]] = key[1]
+    else:
+        logger.info("invalid header specified: {}".format(sec))
+        return 0
+
+    if debug >= 2: logger.info("ini db: {}".format(cfgVar))
+    return cfgVar
+
 #write out file using the csv dict writer
 def updateCSV(data, csv_loc, headers):
+    if debug >= 1: logger.info("updateCSV")
     #if debug_dmy: csv_loc = os.path.join(os.path.dirname(csv_loc), os.path.basename(csv_loc) + ".debug")
-    logging.info(f"Updating CSV: {csv_loc}")
+    if debug >= 1: logger.info(f"Updating CSV: {csv_loc}")
     csvTempfile = NamedTemporaryFile(mode='w', delete=False)
     
-    if debug == 2: logging.info(f"header: {headers}")
+    if debug == 2: logger.info(f"header: {headers}")
 
     csvfile = csv.DictWriter(csvTempfile,delimiter='\t', lineterminator='\n',fieldnames=headers)
     csvfile.writeheader()
@@ -78,7 +125,7 @@ def updateCSV(data, csv_loc, headers):
     #    csvfile.writerow(i)
     csvTempfile.close()
     
-    if debug: logging.info(f"tempfile name: {csvTempfile.name} -- csv_loc: {csv_loc}")
+    if debug: logger.info(f"tempfile name: {csvTempfile.name} -- csv_loc: {csv_loc}")
     shutil.move(csvTempfile.name,csv_loc)
 
 #check if the path given to script exist and contains valid data
@@ -110,19 +157,24 @@ def checkInExist(value, path):
 
 #gets user inputs and return a dictionary of all the keys
 def grabinput(args):
-    if debug >= 1: logger.info("grabinput")
-
+    if debug == 1: logger.info("grabinput")
+    if debug >= 2: logger.info("grabinput: {}".format(args))
     for i,key in enumerate(args):
         if i == 0:
+            if debug >= 2: logger.info("grabinput key {}".format(key))
             #gaurd clause to exit program if input dict is incomplete
-            if key != "DESCRIPTION": logger.error("Incorect args! -- incorrect script config, missing arg header description"); return 0
+            if key != "description": logger.error("Incorect args! -- incorrect script config, missing arg header description"); return 0
             my_parser = argparse.ArgumentParser(description=args[key])
         elif i > 0:
+            entry = ast.literal_eval(args[key])
+            if debug >= 2: logger.info("grabinput key {}, entry[key] {}, len: {}".format(key, entry, len(entry)))
             #gaurd clause to exit program if script configured with incomplete infomation
-            if len(args[key]) != 5: logger.error("Incorect args! -- incorrect script config, wrong arg count"); return 0
-            my_parser.add_argument(key, args[key][0],required=args[key][1],nargs=args[key][2],help=args[key][3])
+            if len(entry) != 5: logger.error("Incorect entry! -- incorrect script config, wrong arg count"); return 0
+            my_parser.add_argument(key, entry[0],required=entry[1],nargs=entry[2],help=entry[3])
+    args_ret = my_parser.parse_args()
+    if debug >= 2: logger.info("grabinput return: {}".format(args_ret))
     
-    return my_parser.parse_args()
+    return args_ret
 
 #retrievs data from file, and creates a dictionary 
 def getData(csv_pth):
@@ -192,9 +244,20 @@ def reOrder(data, map):
 
 #main function
 def main():
+    global debug
+    conf_file = "conf.ini"
+    createINI(conf_file)
+    debug = getnCheckCfg(conf_file, 'debug')
+    debug = int(debug['debug'])
+    print(debug)
     #func start
     if debug >= 1: logger.info("Main_func")
 
+    #configure
+    
+    
+    args = getnCheckCfg(conf_file, 'script-arg-conf')
+    
     #arguments we want, this will be put into a json as config for script, reason for this implementation is that it makes the construction easier, during building i can predefine what i want the inputs to be but limit the number of inputs i have to test without adjusting the code. can switch to the complete code later (makes it easier to define the programs parameters)
     #syntax '-option':[op_longhand[--xxx], required[True|False], howmany args['+'|n], description, is path[1|0]]
     #args = {\
@@ -202,24 +265,23 @@ def main():
     #    '-s':['--sumf', True,'+', "summery file input",1],
     #    '-o':['--ouput', True, 1, "output layermap file",1]
     #}
-    args = {\
-        'DESCRIPTION':'adjusting CSV files acording to a maping file',
-        '-s':['--sumf', True,1, "summery file input",1]
-    }
+    
+    new_header = getnCheckCfg(conf_file, 'headers')
 
-    new_header = ['#Layer Name','Layer Purpose','GDS Layer','GDS Datatype']
-
+    if debug == 0 or conf_file == 0: logger.error("could not find header"); return 1
+    
     #get the users inputs
     userInp = grabinput(args)
     
     #sanity check inputs
     for i, key in enumerate(args):
         if i > 0: 
-            if not checkInExist(getattr(userInp, args[key][0].strip('-')), args[key][4]): logger.error("exiting program error while prossesing: {} in input configuration".format(key))
+            # the return is a string so we need to turn each entry into a actual list stol = ast.literal_eval(args[key]) 
+            if not checkInExist(getattr(userInp, ast.literal_eval(args[key])[0].strip('-')), ast.literal_eval(args[key])[4]): logger.error("exiting program error while prossesing: {} in input configuration".format(key))
             elif debug == 2: logger.info("user input config: {} -- conf: {}".format(key,args[key]))
 
     #initialise readin
-    tempf = initialread(getattr(userInp, args['-s'][0].strip('-'))[0], 1)
+    tempf = initialread(getattr(userInp, ast.literal_eval(args['-s'])[0].strip('-'))[0], 1)
 
     #read in file
     data = getData(tempf)
@@ -235,7 +297,7 @@ def main():
     #file headers as they stand: <GDS#>	<GDS DataType>	<Layer Name>
     #required order: <#Layer Name> <Layer Purpose>  <GDS Layer>   <GDS Datatype>
 
-    updateCSV(finalData, 'layer.map', new_header)
+    updateCSV(finalData, getattr(userInp, ast.literal_eval(args['-o'])[0].strip('-'))[0], ast.literal_eval(new_header['new_header']))
 
 if __name__ == "__main__":
     logger.info("layerSumToLayerMap.py RUN")
