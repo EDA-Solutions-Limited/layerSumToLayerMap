@@ -49,7 +49,7 @@
 ## About The Project
 Process Design Kits (PDKs) somtimes contain layout files that describe the layout. these layout files are used either in the setup of the layer pallet within the Tanner tools or to define names for layers in rule files. LVL rule decks in Calibre require a layermap file to get layer names that match the design layer name instead of Lxx_Dxx
 
-it can be time consuming to build a layermap if one is not present. so this scipt will automate the pocess by taking an input layer summery file from L-edit and create a CSV
+It can be time consuming to build a layermap if one is not present. so this scipt will automate the pocess by taking an input layer summery file from L-edit and create a CSV
 
 ### Built With
 
@@ -108,11 +108,9 @@ Contributions are what make the open source community such an amazing place to b
 <!-- LICENSE -->
 ## License
 
-Not to be distributed to anyone outside EDA solutions. 
+MIT License
 
 <!-- CONTACT -->
 ## Contact
 
-Henry Frankland - [@hfrank](https://www.linkedin.com/in/henry-frankland-asic/) - henryfrankland@eda-solutions.com - henry@franklandhome.co.uk
-
-Project Link: [layerSumToLayerMap](https://github.com/EDA-Solutions-Limited/layerSumToLayerMap.git)
+Support - github@eda-solutions.com
